@@ -2,9 +2,23 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+import { Breadcrumb } from "@/components/breadcrumb";
+
 export default function DashboardPage() {
   return (
     <>
+      {/* Header + breadcrumb */}
+      <div className="mb-6 space-y-3">
+        <Breadcrumb />
+
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight">Dashboard</h1>
+          <p className="text-xs text-muted-foreground">
+            Overview of your multi-tenant platform activity.
+          </p>
+        </div>
+      </div>
+
       {/* Top stats row */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="border border-border bg-card text-foreground shadow-sm dark:bg-slate-900 dark:border-slate-800 dark:text-slate-50">

@@ -13,13 +13,18 @@ type DashboardShellProps = {
 export function DashboardShell({ children, user }: DashboardShellProps) {
   return (
     <div className="flex min-h-screen bg-background text-foreground dark:bg-slate-950 dark:text-slate-50">
+      {/* Left sidebar */}
       <Sidebar user={user} />
 
+      {/* Main column */}
       <div className="flex min-h-screen flex-1 flex-col">
+        {/* Top navbar */}
         <Navbar user={user} />
 
-        <main className="flex-1 bg-background px-4 py-6 dark:bg-slate-950">
-          <div className="mx-auto max-w-6xl">{children}</div>
+        {/* Page content */}
+        <main className="flex-1 bg-background px-4 py-6 lg:px-6 xl:px-8 dark:bg-slate-950">
+          {/* 👇 full-width content, no centering/max-width constraint */}
+          <div className="w-full">{children}</div>
         </main>
       </div>
     </div>

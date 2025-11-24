@@ -4,10 +4,11 @@ import {
   Building2,
   ChevronLeft,
   CreditCard,
+  Folder,
   LayoutDashboard,
   Menu,
   Settings,
-  Users,
+  Users
 } from "lucide-react";
 
 import Link from "next/link";
@@ -26,6 +27,7 @@ const navItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "Tenants", href: "/tenants", icon: Building2 },
   { label: "Users", href: "/users", icon: Users },
+   { label: "Files", href: "/files", icon: Folder },   
   { label: "Billing", href: "/billing", icon: CreditCard },
   { label: "Settings", href: "/settings", icon: Settings },
 ];

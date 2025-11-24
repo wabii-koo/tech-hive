@@ -10,19 +10,23 @@ generator client {
 }
 
 model User {
-  id            String        @id
-  name          String        @db.Text
+  id            String    @id
+  name          String    @db.Text
   email         String
-  emailVerified Boolean       @default(false)
-  image         String?       @db.Text
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  emailVerified Boolean   @default(false)
+  image         String?   @db.Text
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   sessions      Session[]
   accounts      Account[]
 
   // multi-tenant & rbac relations
   tenantMemberships UserTenant[]
   userRoles         UserRole[]
+
+  // file manager relations
+  folders Folder[] @relation("UserFolders") // folders created by this user
+  files   File[]   @relation("UserFiles") // files owned by this user
 
   @@unique([email])
   @@map("user")
@@ -81,74 +85,78 @@ model Verification {
 // =====================
 
 enum RoleScope {
-  CENTRAL   // central platform roles
-  TENANT    // tenant-scoped roles
+  CENTRAL // central platform roles
+  TENANT // tenant-scoped roles
 }
 
 model Tenant {
-  id        String        @id @default(cuid())
+  id        String   @id @default(cuid())
   name      String
-  slug      String        @unique
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   users     UserTenant[]
   userRoles UserRole[]
   domains   TenantDomain[]
+
+  // file manager relations
+  folders Folder[]
+  files   File[]
 }
 
 // separate table for domains
 model TenantDomain {
   id        String   @id @default(cuid())
-  tenantId  String   @unique     // one domain record per tenant
-  domain    String   @unique     // each domain unique globally
+  tenantId  String   @unique // one domain record per tenant
+  domain    String   @unique // each domain unique globally
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model Role {
-  id        Int              @id @default(autoincrement())
-  key       String           @unique          // e.g. "central_superadmin"
-  name      String                            // e.g. "Central Super Administrator"
+  id        Int       @id @default(autoincrement())
+  key       String    @unique // e.g. "central_superadmin"
+  name      String // e.g. "Central Super Administrator"
   scope     RoleScope
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  userRoles    UserRole[]
-  permissions  RolePermission[]
+  userRoles   UserRole[]
+  permissions RolePermission[]
 }
 
 model Permission {
-  id        Int              @id @default(autoincrement())
-  key       String           @unique          // e.g. "manage_tenants"
-  name      String                            // human readable
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  id        Int      @id @default(autoincrement())
+  key       String   @unique // e.g. "manage_tenants"
+  name      String // human readable
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  roles     RolePermission[]
+  roles RolePermission[]
 }
 
 model RolePermission {
   roleId       Int
   permissionId Int
 
-  role        Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission  Permission  @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([roleId, permissionId])
 }
 
 // user <-> tenant membership
 model UserTenant {
-  id         String   @id @default(cuid())
-  userId     String
-  tenantId   String
-  isOwner    Boolean  @default(false)
+  id       String  @id @default(cuid())
+  userId   String
+  tenantId String
+  isOwner  Boolean @default(false)
 
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([userId, tenantId])
 }
@@ -158,11 +166,60 @@ model UserRole {
   id       String  @id @default(cuid())
   userId   String
   roleId   Int
-  tenantId String?      // null = central role
+  tenantId String? // null = central role
 
-  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role     Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
 
   @@unique([userId, roleId, tenantId])
+}
+
+// =====================
+//   FILE MANAGER
+// =====================
+
+model Folder {
+  id   String @id @default(cuid())
+  name String
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  parentId String?
+  parent   Folder?  @relation("FolderChildren", fields: [parentId], references: [id])
+  children Folder[] @relation("FolderChildren")
+
+  createdById String
+  createdBy   User   @relation("UserFolders", fields: [createdById], references: [id])
+
+  files     File[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model File {
+  id       String @id @default(cuid())
+  name     String
+  size     Int
+  mimeType String
+
+  // ⬇️ change here
+  url      String @db.LongText // can hold large base64 data URLs
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  folderId String?
+  folder   Folder? @relation(fields: [folderId], references: [id])
+
+  ownerId String
+  owner   User   @relation("UserFiles", fields: [ownerId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
 }

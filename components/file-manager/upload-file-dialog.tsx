@@ -1,0 +1,195 @@
+// components/file-manager/upload-file-dialog.tsx
+"use client";
+
+import "filepond/dist/filepond.min.css";
+import "filepond-plugin-image-preview/dist/filepond-plugin-image-preview.css";
+
+import * as React from "react";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { FilePond, registerPlugin } from "react-filepond";
+import { useState, useTransition } from "react";
+
+import { Button } from "@/components/ui/button";
+import FilePondPluginImagePreview from "filepond-plugin-image-preview";
+import { Input } from "@/components/ui/input";
+import { UploadCloud } from "lucide-react";
+import { showToast } from "@/lib/toast";
+import { uploadFileAction } from "./upload-file-action";
+
+// Register FilePond plugins
+registerPlugin(FilePondPluginImagePreview);
+
+type UploadFileDialogProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  folderId?: string | null;
+  currentPath: string; // The display path for the current location
+};
+
+export function UploadFileDialog({
+  open,
+  onOpenChange,
+  folderId,
+  currentPath,
+}: UploadFileDialogProps) {
+  const [isPending, startTransition] = useTransition();
+  const [fileToUpload, setFileToUpload] = useState<File[]>([]);
+  const [baseName, setBaseName] = useState("");
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    if (fileToUpload.length === 0) {
+      showToast({
+        title: "No file selected",
+        description: "Please select a file to upload.",
+        variant: "error",
+      });
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", fileToUpload[0]);
+
+    if (baseName) {
+      formData.append("baseName", baseName);
+    }
+
+    // Inject folderId if present (this folder or root)
+    if (folderId) {
+      formData.append("folderId", folderId);
+    }
+
+    startTransition(async () => {
+      try {
+        await uploadFileAction(formData);
+
+        // Reset state and close dialog on success
+        const uploadedName = baseName || fileToUpload[0].name;
+        setFileToUpload([]);
+        setBaseName("");
+        onOpenChange(false);
+
+        showToast({
+          title: "File Uploaded",
+          description: `The file '${uploadedName}' was uploaded successfully to ${currentPath}.`,
+          variant: "success",
+        });
+      } catch (error) {
+        console.error("[UploadFileDialog] error", error);
+        showToast({
+          title: "Upload Failed",
+          description:
+            error instanceof Error
+              ? error.message
+              : "We couldn't upload the file. Please try again.",
+          variant: "error",
+        });
+      }
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md md:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <UploadCloud className="h-5 w-5" /> Upload File(s)
+          </DialogTitle>
+          <DialogDescription>
+            Select files to upload to the current directory.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Save in Folder */}
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-muted-foreground">
+              Save in Folder
+            </label>
+            <Input
+              value={currentPath}
+              readOnly
+              className="cursor-default bg-muted/50 text-xs"
+            />
+          </div>
+
+          {/* Base Name Input */}
+          <div>
+            <label
+              htmlFor="baseName"
+              className="mb-1 block text-xs font-semibold text-muted-foreground"
+            >
+              Base Name (optional, no extension)
+            </label>
+            <Input
+              id="baseName"
+              placeholder="e.g., Invoice-2025-Q3"
+              value={baseName}
+              onChange={(e) => setBaseName(e.target.value)}
+              disabled={isPending}
+              className="text-xs"
+            />
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              Leave blank to keep the original filename. If provided, the
+              filename will be renamed automatically.
+            </p>
+          </div>
+
+          {/* FilePond Area */}
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-muted-foreground">
+              Select Files
+            </label>
+            <FilePond
+              files={fileToUpload}
+              onupdatefiles={(fileItems) => {
+                setFileToUpload(
+                  fileItems.map((fileItem) => fileItem.file as File)
+                );
+              }}
+              allowMultiple={false}
+              maxFiles={1}
+              server={null}
+              name="file"
+              labelIdle='Drag & Drop your file or <span class="filepond--label-action"> Browse </span>'
+              disabled={isPending}
+              className="text-sm"
+            />
+            <p className="mt-2 px-1 text-[10px] text-muted-foreground">
+              Allowed formats: images, documents, archives, audio, video,
+              source files, and more.
+            </p>
+          </div>
+
+          <DialogFooter className="flex justify-end gap-3 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isPending}
+              className="px-6"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={isPending || fileToUpload.length === 0}
+              className="bg-purple-600 px-6 text-white shadow-md hover:bg-purple-700"
+            >
+              {isPending ? "Uploading..." : "Upload"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
