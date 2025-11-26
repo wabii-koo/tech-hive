@@ -10,108 +10,128 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { MoreHorizontal, Star, Trash2, Undo2, XCircle } from "lucide-react";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Trash2 } from "lucide-react";
-import { useState, useTransition } from "react";
+  deleteFilePermanently,
+  moveToTrash,
+  restoreFromTrash,
+  toggleFavorite,
+} from "@/app/(dashboard)/files/actions";
 
-import { Button } from "@/components/ui/button";
-import { deleteFileAction } from "./file-actions";
-import { showToast } from "@/lib/toast";
-
-type FileActionsMenuProps = {
-  fileId: string;
-  fileName: string;
-  folderId?: string | null;
-};
+import { useTransition } from "react";
 
 export function FileActionsMenu({
   fileId,
   fileName,
-  folderId = null,
-}: FileActionsMenuProps) {
-  const [openConfirm, setOpenConfirm] = useState(false);
+  folderId,
+  isFavorite,
+  isTrashed,
+  path = "/files",
+}: {
+  fileId: string;
+  fileName: string;
+  folderId?: string | null;
+  isFavorite?: boolean;
+  isTrashed?: boolean;
+  path?: string; // current route for revalidatePath
+}) {
   const [isPending, startTransition] = useTransition();
 
-  function handleDelete() {
-    startTransition(async () => {
-      try {
-        await deleteFileAction(fileId, folderId ?? undefined);
-        setOpenConfirm(false);
-        showToast({
-          title: "File deleted",
-          description: `“${fileName}” was deleted successfully.`,
-          variant: "success",
-        });
-      } catch (error) {
-        console.error("[FileActionsMenu] delete error", error);
-        showToast({
-          title: "Delete failed",
-          description:
-            error instanceof Error
-              ? error.message
-              : "We couldn't delete this file.",
-          variant: "error",
-        });
-      }
-    });
-  }
+  const handleFavorite = () => {
+    startTransition(() => toggleFavorite(fileId, path));
+  };
+
+  const handleTrash = () => {
+    startTransition(() => moveToTrash(fileId, path));
+  };
+
+  const handleRestore = () => {
+    startTransition(() => restoreFromTrash(fileId, path));
+  };
+
+  const handleDeleteForever = () => {
+    startTransition(() => deleteFilePermanently(fileId, path));
+  };
 
   return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-7 w-7 rounded-full border bg-background text-muted-foreground shadow-sm hover:bg-accent"
-          >
-            <MoreHorizontal className="h-3.5 w-3.5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-40 text-xs">
-          <DropdownMenuItem
-            className="text-destructive focus:text-destructive"
-            onClick={() => setOpenConfirm(true)}
-          >
-            <Trash2 className="mr-2 h-3.5 w-3.5" />
-            Delete file
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+    <div className="flex items-center gap-1">
+      {/* Favourite toggle */}
+      {!isTrashed && (
+        <button
+          type="button"
+          onClick={handleFavorite}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full border bg-background text-xs text-muted-foreground hover:bg-amber-50 hover:text-amber-500"
+          disabled={isPending}
+          title={isFavorite ? "Remove from favourites" : "Add to favourites"}
+        >
+          <Star
+            className={`h-3.5 w-3.5 ${
+              isFavorite ? "fill-amber-400 text-amber-500" : ""
+            }`}
+          />
+        </button>
+      )}
 
-      <AlertDialog open={openConfirm} onOpenChange={setOpenConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this file?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. The file{" "}
-              <span className="font-medium text-foreground">
-                “{fileName}”
-              </span>{" "}
-              will be permanently removed from this workspace.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={isPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isPending ? "Deleting…" : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+      {/* Trash / restore / delete forever */}
+      {!isTrashed ? (
+        <button
+          type="button"
+          onClick={handleTrash}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full border bg-background text-xs text-muted-foreground hover:bg-red-50 hover:text-red-500"
+          disabled={isPending}
+          title="Move to Recycle Bin"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={handleRestore}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border bg-background text-xs text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600"
+            disabled={isPending}
+            title="Restore from Recycle Bin"
+          >
+            <Undo2 className="h-3.5 w-3.5" />
+          </button>
+
+          {/* AlertDialog for permanent delete */}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border bg-background text-xs text-muted-foreground hover:bg-red-100 hover:text-red-600"
+                disabled={isPending}
+                title="Delete permanently"
+              >
+                <XCircle className="h-3.5 w-3.5" />
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Delete “{fileName}” permanently?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. The file will be removed
+                  permanently from the system.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDeleteForever}
+                  className="bg-red-600 text-white hover:bg-red-700"
+                >
+                  Delete permanently
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      )}
+    </div>
   );
 }

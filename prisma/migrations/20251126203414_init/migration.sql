@@ -7,6 +7,7 @@ CREATE TABLE `user` (
     `image` TEXT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
+    `isActive` BOOLEAN NOT NULL DEFAULT true,
 
     UNIQUE INDEX `user_email_key`(`email`),
     PRIMARY KEY (`id`)
@@ -167,8 +168,22 @@ CREATE TABLE `File` (
     `ownerId` VARCHAR(191) NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
+    `isFavorite` BOOLEAN NOT NULL DEFAULT false,
+    `deletedAt` DATETIME(3) NULL,
 
     INDEX `File_tenantId_idx`(`tenantId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `FileManagerSettings` (
+    `id` VARCHAR(191) NOT NULL DEFAULT 'global',
+    `maxFileSizeMb` INTEGER NOT NULL DEFAULT 50,
+    `allowedExtensions` JSON NOT NULL,
+    `autoEmptyRecycleBinDays` INTEGER NOT NULL DEFAULT 30,
+    `requireDeleteConfirmation` BOOLEAN NOT NULL DEFAULT true,
+    `allowPublicSharing` BOOLEAN NOT NULL DEFAULT false,
+
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 

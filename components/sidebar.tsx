@@ -8,7 +8,7 @@ import {
   LayoutDashboard,
   Menu,
   Settings,
-  Users
+  ShieldCheck,
 } from "lucide-react";
 
 import Link from "next/link";
@@ -26,8 +26,9 @@ type SidebarProps = {
 const navItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "Tenants", href: "/tenants", icon: Building2 },
-  { label: "Users", href: "/users", icon: Users },
-   { label: "Files", href: "/files", icon: Folder },   
+  // ⬇️ changed from Users → Security and /users → /security
+  { label: "Security", href: "/security", icon: ShieldCheck },
+  { label: "Files", href: "/files", icon: Folder },
   { label: "Billing", href: "/billing", icon: CreditCard },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
@@ -50,9 +51,7 @@ export function Sidebar({ user }: SidebarProps) {
         </div>
         {!collapsed && (
           <div className="ml-3 flex flex-col leading-tight">
-            <span className="text-sm font-semibold tracking-tight">
-              Hive
-            </span>
+            <span className="text-sm font-semibold tracking-tight">Hive</span>
             <span className="text-[10px] uppercase text-muted-foreground">
               Multi-tenant hub
             </span>
@@ -89,10 +88,8 @@ export function Sidebar({ user }: SidebarProps) {
                 className={cn(
                   "flex h-9 w-9 items-center justify-center rounded-2xl transition-all",
                   active
-                    ? // active icon
-                      "bg-slate-900 text-slate-50 dark:bg-slate-900"
-                    : // idle icon
-                      "bg-slate-100 text-slate-500 group-hover:bg-slate-900 group-hover:text-slate-50 dark:bg-slate-900/40 dark:text-slate-300 dark:group-hover:bg-slate-900"
+                    ? "bg-slate-900 text-slate-50 dark:bg-slate-900"
+                    : "bg-slate-100 text-slate-500 group-hover:bg-slate-900 group-hover:text-slate-50 dark:bg-slate-900/40 dark:text-slate-300 dark:group-hover:bg-slate-900"
                 )}
               >
                 <Icon className="h-4 w-4" />

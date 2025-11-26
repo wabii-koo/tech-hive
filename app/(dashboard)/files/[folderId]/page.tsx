@@ -121,12 +121,13 @@ export default async function FolderPage(props: {
     orderBy: { createdAt: "desc" },
   });
 
-  // Files in this folder (paginated)
+  // Files in this folder (paginated, exclude trashed)
   const filesTotalCount = await prisma.file.count({
     where: {
       tenantId: tenant.id,
       ownerId: user.id,
       folderId: currentFolder.id,
+      deletedAt: null,
     },
   });
 
@@ -135,6 +136,7 @@ export default async function FolderPage(props: {
       tenantId: tenant.id,
       ownerId: user.id,
       folderId: currentFolder.id,
+      deletedAt: null,
     },
     orderBy: { createdAt: "desc" },
     skip: (filesPage - 1) * FILES_PAGE_SIZE,
@@ -212,7 +214,6 @@ export default async function FolderPage(props: {
         </div>
       </div>
 
-      {/* 2 cols (no details) / 3 cols (with details) */}
       <div
         className={[
           "grid gap-6",
@@ -402,6 +403,8 @@ export default async function FolderPage(props: {
                           fileId={file.id}
                           fileName={file.name}
                           folderId={currentFolder.id}
+                          isFavorite={file.isFavorite}
+                          isTrashed={!!file.deletedAt}
                         />
                       </div>
                     );
@@ -413,30 +416,32 @@ export default async function FolderPage(props: {
         </section>
 
         {/* RIGHT: File Details (only if a file is selected) */}
-        {selectedFile ? (
+        {hasDetails ? (
           <section className="flex flex-col rounded-2xl border bg-card/95 shadow-sm backdrop-blur">
             <header className="flex items-center justify-between border-b bg-gradient-to-r from-slate-50 to-amber-50 px-5 py-4 dark:from-slate-950 dark:to-slate-900">
               <h2 className="text-sm font-semibold">File Details</h2>
               <FileActionsMenu
-                fileId={selectedFile.id}
-                fileName={selectedFile.name}
-                folderId={selectedFile.folderId}
+                fileId={selectedFile!.id}
+                fileName={selectedFile!.name}
+                folderId={selectedFile!.folderId}
+                isFavorite={selectedFile!.isFavorite}
+                isTrashed={!!selectedFile!.deletedAt}
               />
             </header>
 
             <div className="flex flex-1 flex-col gap-4 px-5 py-6 text-[11px]">
               <div className="flex items-center justify-center rounded-2xl bg-muted/60 p-3">
                 <FilePreview
-                  mimeType={selectedFile.mimeType}
-                  url={selectedFile.url}
-                  name={selectedFile.name}
+                  mimeType={selectedFile!.mimeType}
+                  url={selectedFile!.url}
+                  name={selectedFile!.name}
                 />
               </div>
 
               <div className="flex justify-end">
                 <a
-                  href={selectedFile.url}
-                  download={selectedFile.name}
+                  href={selectedFile!.url}
+                  download={selectedFile!.name}
                   className="inline-flex items-center gap-1 rounded-full border bg-background px-3 py-1 text-[11px] font-medium shadow-sm hover:bg-muted"
                 >
                   <Download className="h-3 w-3" />
@@ -444,19 +449,19 @@ export default async function FolderPage(props: {
                 </a>
               </div>
 
-              <DetailRow label="File Name" value={selectedFile.name} />
+              <DetailRow label="File Name" value={selectedFile!.name} />
               <DetailRow
                 label="Size"
-                value={formatBytes(selectedFile.size)}
+              value={formatBytes(selectedFile!.size)}
               />
               <DetailRow
                 label="MIME Type"
-                value={selectedFile.mimeType || "Unknown"}
+                value={selectedFile!.mimeType || "Unknown"}
               />
               <DetailRow label="Location" value={currentPath} />
               <DetailRow
                 label="Created At"
-                value={selectedFile.createdAt.toISOString()}
+                value={selectedFile!.createdAt.toISOString()}
               />
             </div>
           </section>

@@ -4,6 +4,26 @@ import { getCurrentSession } from "@/lib/auth-server";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
+/* -------------------------------------------------------------------------- */
+/*  Helpers                                                                    */
+/* -------------------------------------------------------------------------- */
+
+async function getContext() {
+  const { user } = await getCurrentSession();
+
+  if (!user || !user.id) {
+    throw new Error("You must be signed in to perform this action.");
+  }
+
+  return {
+    userId: user.id as string,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Create Folder (your existing action)                                       */
+/* -------------------------------------------------------------------------- */
+
 export type CreateFolderState = {
   status: "idle" | "success" | "error";
   message?: string;
@@ -27,26 +47,18 @@ export async function createFolder(
     return { status: "error", message: "Missing tenant context." };
   }
 
-  const { user } = await getCurrentSession();
-
-  if (!user || !user.id) {
-    return {
-      status: "error",
-      message: "You must be signed in to create folders.",
-    };
-  }
+  const { userId } = await getContext();
 
   try {
     await prisma.folder.create({
       data: {
         name,
         tenantId,
-        createdById: user.id as string,
-        // parentId stays null for now (root folder)
+        createdById: userId,
+        // parentId stays null for root; child folders can pass parentId explicitly
       },
     });
 
-    // Refresh /files so when you later render real folders, they appear
     revalidatePath("/files");
 
     return {
@@ -60,4 +72,79 @@ export async function createFolder(
       message: "Something went wrong while creating folder.",
     };
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  File favourites / recycle bin                                              */
+/* -------------------------------------------------------------------------- */
+
+export async function toggleFavorite(fileId: string) {
+  const { userId } = await getContext();
+
+  const file = await prisma.file.findFirst({
+    where: {
+      id: fileId,
+      ownerId: userId,
+    },
+    select: {
+      isFavorite: true,
+    },
+  });
+
+  if (!file) return;
+
+  await prisma.file.update({
+    where: { id: fileId },
+    data: { isFavorite: !file.isFavorite },
+  });
+
+  revalidatePath("/files");
+}
+
+export async function moveToTrash(fileId: string) {
+  const { userId } = await getContext();
+
+  await prisma.file.updateMany({
+    where: {
+      id: fileId,
+      ownerId: userId,
+      deletedAt: null,
+    },
+    data: {
+      deletedAt: new Date(),
+      isFavorite: false,
+    },
+  });
+
+  revalidatePath("/files");
+}
+
+export async function restoreFromTrash(fileId: string) {
+  const { userId } = await getContext();
+
+  await prisma.file.updateMany({
+    where: {
+      id: fileId,
+      ownerId: userId,
+      deletedAt: { not: null },
+    },
+    data: {
+      deletedAt: null,
+    },
+  });
+
+  revalidatePath("/files");
+}
+
+export async function deleteFilePermanently(fileId: string) {
+  const { userId } = await getContext();
+
+  await prisma.file.deleteMany({
+    where: {
+      id: fileId,
+      ownerId: userId,
+    },
+  });
+
+  revalidatePath("/files");
 }

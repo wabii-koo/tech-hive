@@ -3,6 +3,11 @@
 import { PrismaClient, RoleScope } from "@prisma/client";
 
 import { auth } from "../lib/auth";
+import { syncCentralSuperAdminPermissions } from "../lib/rbac";
+
+// Make sure these imports point to the correct files in your app.
+// - ../lib/auth    → your auth config / wrapper
+// - ../lib/rbac    → contains syncCentralSuperAdminPermissions()
 
 const prisma = new PrismaClient();
 
@@ -29,6 +34,10 @@ function section(title: string) {
   console.log(`\n${COLORS.magenta}${COLORS.bold}› ${title}${COLORS.reset}`);
 }
 
+/**
+ * Create a user via your auth system if it does not exist yet.
+ * Adjust this to match your auth API if needed.
+ */
 async function ensureUser(opts: {
   name: string;
   email: string;
@@ -40,6 +49,7 @@ async function ensureUser(opts: {
 
   if (existing) return existing;
 
+  // Make sure your auth.api.signUpEmail matches this signature
   await auth.api.signUpEmail({
     body: {
       name: opts.name,
@@ -59,6 +69,49 @@ async function ensureUser(opts: {
   return created;
 }
 
+async function ensureUserTenant(userId: string, tenantId: string) {
+  await prisma.userTenant.upsert({
+    where: {
+      userId_tenantId: {
+        userId,
+        tenantId,
+      },
+    },
+    update: {
+      isOwner: true,
+    },
+    create: {
+      userId,
+      tenantId,
+      isOwner: true,
+    },
+  });
+}
+
+async function ensureUserRole(opts: {
+  userId: string;
+  roleId: number;
+  tenantId?: string | null;
+}) {
+  const { userId, roleId, tenantId = null } = opts;
+
+  // For a given roleId + tenantId, ensure only one user has it:
+  await prisma.userRole.deleteMany({
+    where: {
+      roleId,
+      tenantId,
+    },
+  });
+
+  await prisma.userRole.create({
+    data: {
+      userId,
+      roleId,
+      tenantId,
+    },
+  });
+}
+
 async function main() {
   banner("Hive Seed – Roles, Permissions, Tenants & Superadmins");
 
@@ -73,6 +126,12 @@ async function main() {
     { key: "manage_roles", name: "Manage Roles & Permissions" },
     { key: "manage_billing", name: "Manage Billing & Subscriptions" },
     { key: "view_audit_logs", name: "View Audit Logs" },
+
+    // file manager / security related
+    { key: "manage_files", name: "Manage Files & Folders" },
+    { key: "manage_storage_settings", name: "Manage Storage Settings" },
+    { key: "view_security", name: "View Security Area" },
+    { key: "manage_security", name: "Manage Security (Users/Roles)" },
   ];
 
   const permissions = await Promise.all(
@@ -114,6 +173,7 @@ async function main() {
     },
   });
 
+  // wipe existing role-permissions for these roles so we can re-attach cleanly
   await prisma.rolePermission.deleteMany({
     where: {
       OR: [
@@ -167,25 +227,24 @@ async function main() {
   );
 
   //
-  // 4) TENANT DOMAINS (separate table)
+  // 4) TENANT DOMAINS
   //
   section("Seeding tenant domains");
 
- const domainData = [
-  {
-    slug: "central-hive",
-    domain: "central.localhost", // http://central.localhost:3000
-  },
-  {
-    slug: "acme-corp",
-    domain: "acme.localhost", // http://acme.localhost:3000
-  },
-  {
-    slug: "beta-labs",
-    domain: "beta.localhost", // http://beta.localhost:3000
-  },
-];
-
+  const domainData = [
+    {
+      slug: "central-hive",
+      domain: "central.localhost", // http://central.localhost:3000
+    },
+    {
+      slug: "acme-corp",
+      domain: "acme.localhost", // http://acme.localhost:3000
+    },
+    {
+      slug: "beta-labs",
+      domain: "beta.localhost", // http://beta.localhost:3000
+    },
+  ];
 
   const tenantDomains = await Promise.all(
     domainData.map(async ({ slug, domain }) => {
@@ -250,25 +309,6 @@ async function main() {
   //
   section("Linking users to tenants");
 
-  async function ensureUserTenant(userId: string, tenantId: string) {
-    await prisma.userTenant.upsert({
-      where: {
-        userId_tenantId: {
-          userId,
-          tenantId,
-        },
-      },
-      update: {
-        isOwner: true,
-      },
-      create: {
-        userId,
-        tenantId,
-        isOwner: true,
-      },
-    });
-  }
-
   await ensureUserTenant(acmeAdmin.id, acmeTenant.id);
   await ensureUserTenant(betaAdmin.id, betaTenant.id);
   await ensureUserTenant(centralHiveAdmin.id, centralHiveTenant.id);
@@ -281,29 +321,6 @@ async function main() {
   // 7) USER ROLES
   //
   section("Assigning roles");
-
-  async function ensureUserRole(opts: {
-    userId: string;
-    roleId: number;
-    tenantId?: string | null;
-  }) {
-    const { userId, roleId, tenantId = null } = opts;
-
-    await prisma.userRole.deleteMany({
-      where: {
-        roleId,
-        tenantId,
-      },
-    });
-
-    await prisma.userRole.create({
-      data: {
-        userId,
-        roleId,
-        tenantId,
-      },
-    });
-  }
 
   await ensureUserRole({
     userId: centralUser.id,
@@ -334,7 +351,16 @@ async function main() {
   );
 
   //
-  // 8) PRETTY SUMMARY
+  // 8) KEEP CENTRAL SUPERADMIN PERMISSIONS IN SYNC
+  //
+  section("Syncing central_superadmin permissions");
+  await syncCentralSuperAdminPermissions();
+  console.log(
+    `${COLORS.green}  ✔ central_superadmin permissions synced with all current permissions${COLORS.reset}`
+  );
+
+  //
+  // 9) PRETTY SUMMARY
   //
   banner("Seed Complete");
 
@@ -383,7 +409,7 @@ async function main() {
     `${COLORS.cyan}┌────────────────────────────────────────────────────────────────────────────────────┐${COLORS.reset}`
   );
   console.log(
-    `${COLORS.cyan}│ ${COLORS.bold}ROLE                         TENANT        DOMAIN              EMAIL                      PASSWORD ${COLORS.cyan}│${COLORS.reset}`
+    `${COLORS.cyan}│ ${COLORS.bold}ROLE                         TENANT        DOMAIN              EMAIL                       PASSWORD ${COLORS.cyan}│${COLORS.reset}`
   );
   console.log(
     `${COLORS.cyan}├────────────────────────────────────────────────────────────────────────────────────┤${COLORS.reset}`
