@@ -261,32 +261,53 @@ export async function deleteUserAction(input: {
   userId: string;
   tenantId?: string | null;
 }) {
-  const { actorId } = await authorizeUserAction(input.tenantId ?? null);
+  const tenantId = input.tenantId ?? null;
+  const { actorId } = await authorizeUserAction(tenantId);
 
+  // 1. Prevent self-delete
   if (input.userId === actorId) {
     throw new Error("CANNOT_DELETE_SELF");
   }
 
-  if (input.tenantId) {
-    const tenantUsersCount = await prisma.userTenant.count({
-      where: { tenantId: input.tenantId },
-    });
-    if (tenantUsersCount <= 1) {
-      throw new Error("CANNOT_DELETE_LAST_USER");
-    }
+  // CENTRAL CONTEXT → hard delete user
+  if (!tenantId) {
+    await prisma.user.delete({ where: { id: input.userId } });
+    return;
+  }
 
-    await prisma.userTenant.delete({
-      where: {
-        userId_tenantId: {
-          userId: input.userId,
-          tenantId: input.tenantId,
-        },
+  // TENANT CONTEXT
+  // 2. Prevent deleting last tenant user (your existing guard)
+  const tenantUsersCount = await prisma.userTenant.count({
+    where: { tenantId },
+  });
+  if (tenantUsersCount <= 1) {
+    throw new Error("CANNOT_DELETE_LAST_USER");
+  }
+
+  // 3. Remove membership + roles for this tenant
+  await prisma.userTenant.delete({
+    where: {
+      userId_tenantId: {
+        userId: input.userId,
+        tenantId,
       },
-    });
-    await prisma.userRole.deleteMany({
-      where: { userId: input.userId, tenantId: input.tenantId },
-    });
-  } else {
+    },
+  });
+
+  await prisma.userRole.deleteMany({
+    where: { userId: input.userId, tenantId },
+  });
+
+  // 4. If user has no other memberships/central roles → delete the user row
+  const remainingMemberships = await prisma.userTenant.count({
+    where: { userId: input.userId },
+  });
+
+  const remainingCentralRoles = await prisma.userRole.count({
+    where: { userId: input.userId, tenantId: null },
+  });
+
+  if (remainingMemberships === 0 && remainingCentralRoles === 0) {
     await prisma.user.delete({ where: { id: input.userId } });
   }
 }

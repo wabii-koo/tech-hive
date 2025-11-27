@@ -112,6 +112,12 @@ export function UsersTabClient({
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
   const [viewDialogOpen, setViewDialogOpen] = React.useState(false);
 
+  // bulk delete dialog
+  const [bulkDialogOpen, setBulkDialogOpen] = React.useState(false);
+  const [bulkDeletableUsers, setBulkDeletableUsers] = React.useState<
+    UserForClient[]
+  >([]);
+
   // --- Selected Data States ---
   const [editingUser, setEditingUser] = React.useState<UserForClient | null>(
     null
@@ -244,6 +250,46 @@ export function UsersTabClient({
         else if (msg.includes("PASSWORD_REQUIRED_FOR_NEW_USER"))
           toast.error("Password is required for new users.");
         else toast.error("Failed to save user.");
+      }
+    });
+  }
+
+  // --- BULK DELETE CONFIRM HANDLER ---
+  function handleBulkDeleteConfirm() {
+    startTransition(async () => {
+      if (!bulkDeletableUsers.length) {
+        setBulkDialogOpen(false);
+        return;
+      }
+
+      let errors = 0;
+
+      await Promise.all(
+        bulkDeletableUsers.map(async (u) => {
+          try {
+            await deleteUserAction({ userId: u.id, tenantId });
+          } catch (err: any) {
+            errors++;
+            const msg = err?.message || "";
+            if (msg.includes("CANNOT_DELETE_SELF")) {
+              toast.error("Cannot delete yourself.");
+            } else if (msg.includes("CANNOT_DELETE_LAST_USER")) {
+              toast.error("Cannot delete the last admin.");
+            }
+          }
+        })
+      );
+
+      router.refresh();
+      setBulkDialogOpen(false);
+      setBulkDeletableUsers([]);
+
+      if (errors && errors < bulkDeletableUsers.length) {
+        toast.warning("Some users could not be deleted.");
+      } else if (errors === bulkDeletableUsers.length) {
+        toast.error("Failed to delete selected users.");
+      } else {
+        toast.success("Selected users deleted.");
       }
     });
   }
@@ -504,34 +550,8 @@ export function UsersTabClient({
               toast.error("No deletable users selected.");
               return;
             }
-
-            let errors = 0;
-
-            await Promise.all(
-              deletable.map(async (u) => {
-                try {
-                  await deleteUserAction({ userId: u.id, tenantId });
-                } catch (err: any) {
-                  errors++;
-                  const msg = err?.message || "";
-                  if (msg.includes("CANNOT_DELETE_SELF")) {
-                    toast.error("Cannot delete yourself.");
-                  } else if (msg.includes("CANNOT_DELETE_LAST_USER")) {
-                    toast.error("Cannot delete the last admin.");
-                  }
-                }
-              })
-            );
-
-            router.refresh();
-
-            if (errors && errors < deletable.length) {
-              toast.warning("Some users could not be deleted.");
-            } else if (errors === deletable.length) {
-              toast.error("Failed to delete selected users.");
-            } else {
-              toast.success("Selected users deleted.");
-            }
+            setBulkDeletableUsers(deletable);
+            setBulkDialogOpen(true);
           }}
         />
       </div>
@@ -712,6 +732,34 @@ export function UsersTabClient({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* --- BULK DELETE DIALOG --- */}
+      <AlertDialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {bulkDeletableUsers.length} selected user
+              {bulkDeletableUsers.length !== 1 ? "s" : ""}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the selected user accounts
+              {tenantId
+                ? " from this workspace and possibly from the platform if they have no other memberships."
+                : " from the platform."}{" "}
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={handleBulkDeleteConfirm}
+            >
+              Delete Selected
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
