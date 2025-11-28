@@ -1,24 +1,13 @@
-// app/(dashboard)/page.tsx
+// app/(dashboard)/dashboard/page.tsx
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-import { Breadcrumb } from "@/components/breadcrumb";
+// ⭐ Auth + permissions are already handled in app/(dashboard)/layout.tsx
+// so this page only needs to render dashboard content.
 
 export default function DashboardPage() {
   return (
     <>
-      {/* Header + breadcrumb */}
-      <div className="mb-6 space-y-3">
-        <Breadcrumb />
-
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">Dashboard</h1>
-          <p className="text-xs text-muted-foreground">
-            Overview of your multi-tenant platform activity.
-          </p>
-        </div>
-      </div>
-
       {/* Top stats row */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="border border-border bg-card text-foreground shadow-sm dark:bg-slate-900 dark:border-slate-800 dark:text-slate-50">
@@ -51,9 +40,7 @@ export default function DashboardPage() {
 
         <Card className="border border-border bg-card text-foreground shadow-sm dark:bg-slate-900 dark:border-slate-800 dark:text-emerald-400">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">
-              Error rate
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Error rate</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-semibold">0.2%</div>

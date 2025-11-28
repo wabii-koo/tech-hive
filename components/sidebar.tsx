@@ -1,3 +1,4 @@
+// components/sidebar.tsx
 "use client";
 
 import {
@@ -21,21 +22,36 @@ type SidebarProps = {
     name: string | null;
     email: string;
   };
+  permissions?: string[]; // ⬅️ NEW
 };
 
 const navItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "Tenants", href: "/tenants", icon: Building2 },
-  // ⬇️ changed from Users → Security and /users → /security
   { label: "Security", href: "/security", icon: ShieldCheck },
   { label: "Files", href: "/files", icon: Folder },
   { label: "Billing", href: "/billing", icon: CreditCard },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
-export function Sidebar({ user }: SidebarProps) {
+export function Sidebar({ user, permissions = [] }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(true);
   const pathname = usePathname();
+
+  // simple helpers
+  const has = (key: string) => permissions.includes(key);
+  const hasAny = (keys: string[]) => keys.some((k) => permissions.includes(k));
+
+  const canSeeTenants = has("manage_tenants");
+  const canSeeSecurity = hasAny([
+    "view_security",
+    "manage_security",
+    "manage_users",
+    "manage_roles",
+  ]);
+  const canSeeFiles = has("manage_files");
+  const canSeeBilling = has("manage_billing");
+  // Settings stays visible for everyone
 
   return (
     <aside
@@ -62,6 +78,12 @@ export function Sidebar({ user }: SidebarProps) {
       {/* Nav */}
       <nav className="mt-2 flex-1 space-y-1 px-2">
         {navItems.map((item) => {
+          // 🔒 Gate each route using permissions
+          if (item.href === "/tenants" && !canSeeTenants) return null;
+          if (item.href === "/security" && !canSeeSecurity) return null;
+          if (item.href === "/files" && !canSeeFiles) return null;
+          if (item.href === "/billing" && !canSeeBilling) return null;
+
           const Icon = item.icon;
           const active = pathname === item.href;
 

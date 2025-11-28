@@ -1,74 +1,87 @@
 // lib/permissions.ts
 
+import { RoleScope } from "@prisma/client";
 import { getCurrentSession } from "@/lib/auth-server";
+import { getTenantAndUser } from "@/lib/get-tenant-and-user";
 import { prisma } from "@/lib/prisma";
 
-/**
- * Returns the list of permission keys the current user has
- * for the given tenant context.
- *
- * - If user has central_superadmin (global) -> all global permissions.
- * - Otherwise -> aggregate permissions of:
- *   - global roles (tenantId = null)
- *   - tenant-local roles for activeTenantId
- */
-export async function getCurrentUserPermissions(
-  currentTenantId?: string | null
-): Promise<string[]> {
+export async function getCurrentUserPermissions(): Promise<string[]> {
   const { user } = await getCurrentSession();
-  if (!user?.id) return [];
+  if (!user) return [];
 
-  const dbUser = await prisma.user.findUnique({
-    where: { id: user.id as string },
+  const { tenant } = await getTenantAndUser();
+  const currentTenantId = tenant?.id ?? null;
+
+  // 1) Get all roles for this user (central + tenant)
+  const userRoles = await prisma.userRole.findMany({
+    where: { userId: user.id },
     include: {
-      userRoles: {
-        include: {
-          role: {
-            include: {
-              permissions: { include: { permission: true } },
-            },
-          },
-        },
-      },
-      tenantMemberships: true,
+      role: true, // we only need scope + key from Role
     },
   });
 
-  if (!dbUser) return [];
+  // 2) Keep:
+  //    - all CENTRAL roles
+  //    - TENANT roles only for the current tenant
+  const relevantRoles = userRoles.filter((ur) => {
+    const role = ur.role;
 
-  // 1) Central superadmin → all global permissions
-  const isCentralSuperadmin = dbUser.userRoles.some(
-    (ur) => ur.role.key === "central_superadmin" && ur.tenantId === null
+    if (role.scope === RoleScope.CENTRAL) {
+      return true;
+    }
+
+    if (role.scope === RoleScope.TENANT && currentTenantId) {
+      return ur.tenantId === currentTenantId;
+    }
+
+    return false;
+  });
+
+  if (!relevantRoles.length) {
+    if (process.env.NODE_ENV !== "production") {
+      console.log(
+        "[getCurrentUserPermissions] user:",
+        user.email,
+        "tenant:",
+        tenant?.slug ?? "GLOBAL",
+        "→ no relevant roles"
+      );
+    }
+    return [];
+  }
+
+  // 3) Fetch rolePermission rows for those roles
+  const roleIds = relevantRoles.map((ur) => ur.roleId);
+
+  const rolePermissions = await prisma.rolePermission.findMany({
+    where: { roleId: { in: roleIds } },
+    select: { permissionId: true },
+  });
+
+  if (!rolePermissions.length) return [];
+
+  const permissionIds = Array.from(
+    new Set(rolePermissions.map((rp) => rp.permissionId))
   );
 
-  if (isCentralSuperadmin) {
-    const all = await prisma.permission.findMany({
-      where: { tenantId: null },
-    });
-    return all.map((p) => p.key);
+  // 4) Load the actual permissions and return their keys
+  const permissions = await prisma.permission.findMany({
+    where: { id: { in: permissionIds } },
+    select: { key: true },
+  });
+
+  const keys = permissions.map((p) => p.key);
+
+  if (process.env.NODE_ENV !== "production") {
+    console.log(
+      "[getCurrentUserPermissions] user:",
+      user.email,
+      "tenant:",
+      tenant?.slug ?? "GLOBAL",
+      "perms:",
+      keys
+    );
   }
 
-  // 2) Active tenant context (for tenant users)
-  const activeTenantId =
-    currentTenantId ?? dbUser.tenantMemberships[0]?.tenantId ?? null;
-
-  const keys = new Set<string>();
-
-  for (const ur of dbUser.userRoles) {
-    // Global roles apply everywhere
-    if (ur.tenantId === null) {
-      for (const rp of ur.role.permissions) {
-        keys.add(rp.permission.key);
-      }
-    }
-
-    // Tenant-local roles for the active tenant
-    if (activeTenantId && ur.tenantId === activeTenantId) {
-      for (const rp of ur.role.permissions) {
-        keys.add(rp.permission.key);
-      }
-    }
-  }
-
-  return Array.from(keys);
+  return keys;
 }

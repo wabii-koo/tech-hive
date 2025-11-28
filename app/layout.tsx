@@ -1,3 +1,4 @@
+// app/layout.tsx
 import "./globals.css";
 
 import { AppToaster } from "@/components/ui/sonner";
@@ -17,9 +18,8 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="bg-background text-foreground font-sans antialiased">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <ThemeProvider>
           {children}
-          {/* Global toast system */}
           <AppToaster />
         </ThemeProvider>
       </body>

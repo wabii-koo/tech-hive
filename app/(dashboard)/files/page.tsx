@@ -23,11 +23,15 @@ import { FolderActionsMenu } from "@/components/file-manager/folder-actions-menu
 import Link from "next/link";
 import { PdfModalViewer } from "@/components/file-manager/pdf-fullscreen-viewer";
 import type React from "react";
-import { getCurrentUserPermissions } from "@/lib/rbac";
+import { getCurrentUserPermissions } from "@/lib/permissions";
 import { getTenantAndUser } from "@/lib/get-tenant-and-user";
 import { prisma } from "@/lib/prisma";
-import { redirect } from "next/navigation";
+import { requireAnyPermission } from "@/lib/permission-guard";
 import { revalidatePath } from "next/cache";
+
+// 🔒 RBAC helpers
+
+
 
 /* ---------- Server action: update global file manager settings ---------- */
 
@@ -163,17 +167,14 @@ export default async function FilesPage(props: {
   // Auth / tenant
   const { user, tenant } = await getTenantAndUser("/files");
 
-  // RBAC permissions for this tenant context
-  const userPermissions = await getCurrentUserPermissions(tenant.id);
+  // 🔒 Route-level guard: must have manage_files or go to /access-denied
+  const userPermissions = await requireAnyPermission("manage_files");
+
+  // RBAC within the page
   const canManageFiles = userPermissions.includes("manage_files");
   const canViewSettingsSection = userPermissions.includes(
     "manage_storage_settings"
   );
-
-  // If user has no manage_files permission → no access to /files at all
-  if (!canManageFiles) {
-    redirect("/"); // URL won't work without manage_files
-  }
 
   const fileIdParam = toSingle(rawSearchParams.fileId);
   const recentsPageParam = toSingle(rawSearchParams.recentsPage);

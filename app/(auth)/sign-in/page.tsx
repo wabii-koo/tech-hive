@@ -1,3 +1,4 @@
+// app/(auth)/sign-in/page.tsx  (or src/app/(auth)/sign-in/page.tsx)
 "use client";
 
 import { Loader2, Lock, Mail } from "lucide-react";
@@ -11,13 +12,12 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 
-// Simple client-side limiter: 5 attempts → 60s lock
 const MAX_ATTEMPTS = 5;
 const LOCK_SECONDS = 60;
 
 type LoginLimiterState = {
   attempts: number;
-  lockUntil: number | null; // timestamp (ms)
+  lockUntil: number | null;
 };
 
 const STORAGE_KEY = "hive_login_limiter";
@@ -45,20 +45,25 @@ function saveLimiterState(state: LoginLimiterState) {
 export default function SignInPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackURL = searchParams.get("callbackURL") || "/";
+
+  // 🔁 Normalize callback:
+  // - no callbackURL → /dashboard
+  // - callbackURL === "/" → /dashboard
+  // - anything else (like "/files") → respected
+  const rawCallback = searchParams.get("callbackURL")?.toString() ?? null;
+  const callbackURL =
+    !rawCallback || rawCallback === "/" ? "/dashboard" : rawCallback;
 
   const [form, setForm] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // limiter state
   const [limiter, setLimiter] = useState<LoginLimiterState>({
     attempts: 0,
     lockUntil: null,
   });
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
 
-  // Load limiter state from localStorage on mount
   useEffect(() => {
     const initial = loadLimiterState();
     setLimiter(initial);
@@ -74,11 +79,9 @@ export default function SignInPage() {
 
   const remainingSeconds = useMemo(() => {
     if (!limiter.lockUntil) return 0;
-    const diff = Math.max(0, Math.floor((limiter.lockUntil - now) / 1000));
-    return diff;
+    return Math.max(0, Math.floor((limiter.lockUntil - now) / 1000));
   }, [limiter.lockUntil, now]);
 
-  // basic validation
   const emailValid = useMemo(
     () => /^\S+@\S+\.\S+$/.test(form.email.trim()),
     [form.email]
@@ -130,7 +133,7 @@ export default function SignInPage() {
     const { error } = await authClient.signIn.email({
       email: form.email.trim(),
       password: form.password,
-      callbackURL,
+      callbackURL, // ✅ always normalized to /dashboard or a specific deep link
     });
 
     setLoading(false);
@@ -138,14 +141,16 @@ export default function SignInPage() {
     if (error) {
       const msg = (error.message || "").toUpperCase();
 
-      // map backend error codes/messages to user-friendly text
       if (msg.includes("USER_INACTIVE")) {
         setError(
           "Your account is currently disabled. Please contact your administrator."
         );
       } else if (msg.includes("USER_DELETED") || msg.includes("NOT_FOUND")) {
         setError("This account no longer exists.");
-      } else if (msg.includes("INVALID_CREDENTIALS") || msg.includes("CREDENTIALS")) {
+      } else if (
+        msg.includes("INVALID_CREDENTIALS") ||
+        msg.includes("CREDENTIALS")
+      ) {
         setError("Invalid email or password.");
       } else if (msg.includes("TOO_MANY_ATTEMPTS")) {
         setError(
@@ -159,13 +164,14 @@ export default function SignInPage() {
       return;
     }
 
-    // success → reset limiter and redirect
     resetLimiterOnSuccess();
-    router.push(callbackURL);
+
+    // 🔁 Replace so /sign-in isn't in the history stack
+    router.replace(callbackURL);
   }
 
   return (
-    <Card className="border border-slate-800/80 bg-slate-900/80 px-6 py-7 shadow-xl shadow-slate-950/40 backdrop-blur">
+    <Card className="border border-slate-800/80 bg-slate-900/80 px-6 py-7 shadow-xl shadow-slate-950/40 backdrop-blur dark:bg-slate-900/80 dark:border-slate-800/80">
       <div className="mb-5 space-y-1">
         <h1 className="text-xl font-semibold tracking-tight text-slate-50">
           Sign in to your account
@@ -250,10 +256,8 @@ export default function SignInPage() {
             <input
               type="checkbox"
               className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 text-slate-200"
-              // Frontend only “remember me”. For real persistent sessions,
-              // wire this into your auth config.
               onChange={() => {
-                /* placeholder if you want to use later */
+                /* hook up to real remember logic later */
               }}
             />
             <span>Remember this device</span>
