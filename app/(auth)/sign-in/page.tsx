@@ -1,4 +1,5 @@
-// app/(auth)/sign-in/page.tsx  (or src/app/(auth)/sign-in/page.tsx)
+// app/(auth)/sign-in/page.tsx
+
 "use client";
 
 import { Loader2, Lock, Mail } from "lucide-react";
@@ -46,10 +47,9 @@ export default function SignInPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // 🔁 Normalize callback:
-  // - no callbackURL → /dashboard
-  // - callbackURL === "/" → /dashboard
-  // - anything else (like "/files") → respected
+  // Normalize callback:
+  // - no callbackURL or "/" → /dashboard
+  // - anything else (e.g. "/files") → respected
   const rawCallback = searchParams.get("callbackURL")?.toString() ?? null;
   const callbackURL =
     !rawCallback || rawCallback === "/" ? "/dashboard" : rawCallback;
@@ -64,6 +64,7 @@ export default function SignInPage() {
   });
   const [now, setNow] = useState(() => Date.now());
 
+  // 🔁 Load limiter + tick timer
   useEffect(() => {
     const initial = loadLimiterState();
     setLimiter(initial);
@@ -71,6 +72,33 @@ export default function SignInPage() {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  // 🔐 If ?switch=1 → fully sign out current session
+  useEffect(() => {
+    const switchParam = searchParams.get("switch");
+    if (switchParam === "1") {
+      (async () => {
+        try {
+          // invalidate server session & cookies
+          await authClient.signOut();
+        } catch (e) {
+          console.error("[SignIn] signOut on switch failed", e);
+        } finally {
+          // optional: reset limiter when switching account
+          const reset: LoginLimiterState = { attempts: 0, lockUntil: null };
+          setLimiter(reset);
+          saveLimiterState(reset);
+
+          // clean ?switch=1 from URL so it doesn't re-trigger
+          if (typeof window !== "undefined") {
+            const url = new URL(window.location.href);
+            url.searchParams.delete("switch");
+            window.history.replaceState(null, "", url.toString());
+          }
+        }
+      })();
+    }
+  }, [searchParams]);
 
   const isLocked = useMemo(() => {
     if (!limiter.lockUntil) return false;
@@ -133,7 +161,7 @@ export default function SignInPage() {
     const { error } = await authClient.signIn.email({
       email: form.email.trim(),
       password: form.password,
-      callbackURL, // ✅ always normalized to /dashboard or a specific deep link
+      callbackURL, // always normalized to /dashboard or a specific deep link
     });
 
     setLoading(false);
@@ -166,7 +194,7 @@ export default function SignInPage() {
 
     resetLimiterOnSuccess();
 
-    // 🔁 Replace so /sign-in isn't in the history stack
+    // Don’t leave /sign-in in history
     router.replace(callbackURL);
   }
 
