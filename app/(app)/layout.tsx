@@ -1,7 +1,7 @@
 // src/app/(app)/layout.tsx
 
 import type { ReactNode } from "react";
-import { Sidebar } from "@/components/layout/sidebar";
+import { Sidebar } from "@/components/sidebar";
 import { getCurrentSession } from "@/lib/auth-server";
 import { getCurrentUserPermissions } from "@/lib/rbac";
 
