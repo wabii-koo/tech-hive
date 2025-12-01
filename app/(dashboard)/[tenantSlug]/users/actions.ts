@@ -10,7 +10,7 @@ import {
 import { getTenantAndUser } from "@/lib/get-tenant-and-user";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { sendAccountEmail } from "@/lib/email";
+import { sendAccountEmail } from "@/lib/send-email";
 
 type TenantUserFormInput = {
   name: string;
@@ -28,9 +28,12 @@ function ensureTenantSuperadmin(
   }
 }
 
+/**
+ * CREATE tenant-level user (managed only by tenant superadmin).
+ */
 export async function createTenantUser(data: TenantUserFormInput) {
   const { user: currentUser, tenant } = await getTenantAndUser();
-  const current = await getUserWithRoles(currentUser.id);
+  const current = await getUserWithRoles(currentUser?.id ?? "");
   ensureTenantSuperadmin(current, tenant.id);
 
   let user = await prisma.user.findUnique({
@@ -97,12 +100,15 @@ export async function createTenantUser(data: TenantUserFormInput) {
   return { ok: true, userId: user.id };
 }
 
+/**
+ * UPDATE tenant user (name, email, roles etc.)
+ */
 export async function updateTenantUser(
   userId: string,
   data: Partial<TenantUserFormInput>
 ) {
   const { user: currentUser, tenant } = await getTenantAndUser();
-  const current = await getUserWithRoles(currentUser.id);
+  const current = await getUserWithRoles(currentUser?.id ?? "");
   ensureTenantSuperadmin(current, tenant.id);
 
   const user = await prisma.user.update({
@@ -140,10 +146,11 @@ export async function updateTenantUser(
     }
 
     if (!data.makeTenantSuperadmin && existingRole) {
+      // mirror central logic: simple + type-safe deleteMany
       await prisma.userRole.deleteMany({
         where: {
-          userId,
           roleId: role.id,
+          userId,
           tenantId: tenant.id,
         },
       });
@@ -160,12 +167,15 @@ export async function updateTenantUser(
   return { ok: true };
 }
 
+/**
+ * ENABLE / DISABLE tenant user.
+ */
 export async function toggleTenantUserActive(
   userId: string,
   isActive: boolean
 ) {
   const { user: currentUser, tenant } = await getTenantAndUser();
-  const current = await getUserWithRoles(currentUser.id);
+  const current = await getUserWithRoles(currentUser?.id ?? "");
   ensureTenantSuperadmin(current, tenant.id);
 
   const user = await prisma.user.update({
