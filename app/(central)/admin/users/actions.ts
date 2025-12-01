@@ -18,7 +18,9 @@ type UserFormInput = {
   makeCentralSuperadmin?: boolean;
 };
 
-function ensureCentralOnly(user: Awaited<ReturnType<typeof getUserWithRoles>> | null) {
+function ensureCentralOnly(
+  user: Awaited<ReturnType<typeof getUserWithRoles>> | null
+) {
   if (!user || !isCentralSuperadmin(user)) {
     throw new Error("Only the central superadmin can manage central accounts.");
   }
@@ -52,9 +54,9 @@ export async function createCentralUser(data: UserFormInput) {
 
   // Assign central_superadmin if requested
   if (data.makeCentralSuperadmin) {
-    const role = await prisma.role.findUnique({
-      where: { key: "central_superadmin" },
-    });
+    const role = await prisma.role.findFirst({
+      where: { key: "central_superadmin", tenantId: null },
+    }); // ✅ use findFirst + full where
     if (!role) throw new Error("central_superadmin role missing");
 
     await assertSingleCentralSuperadmin(user.id);
@@ -86,7 +88,10 @@ export async function createCentralUser(data: UserFormInput) {
 /**
  * UPDATE central user (name, email, roles etc.)
  */
-export async function updateCentralUser(userId: string, data: Partial<UserFormInput>) {
+export async function updateCentralUser(
+  userId: string,
+  data: Partial<UserFormInput>
+) {
   const { user: currentSessionUser } = await getCurrentSession();
   const current = await getUserWithRoles(currentSessionUser?.id ?? "");
   ensureCentralOnly(current);
@@ -101,9 +106,9 @@ export async function updateCentralUser(userId: string, data: Partial<UserFormIn
 
   // Reassign central_superadmin if flag changed
   if (typeof data.makeCentralSuperadmin === "boolean") {
-    const role = await prisma.role.findUnique({
-      where: { key: "central_superadmin" },
-    });
+    const role = await prisma.role.findFirst({
+      where: { key: "central_superadmin", tenantId: null },
+    }); // ✅ same fix here
     if (!role) throw new Error("central_superadmin role missing");
 
     const existingRole = await prisma.userRole.findFirst({
@@ -126,22 +131,21 @@ export async function updateCentralUser(userId: string, data: Partial<UserFormIn
     }
 
     if (!data.makeCentralSuperadmin && existingRole) {
-      await prisma.userRole.delete({
-        where: {
-          // compound id: you use @@id([roleId, permissionId]) elsewhere,
-          // here we assume Prisma generated an `id` or use a composite PK.
-          // if composite, use deleteMany with the same filter.
-          roleId_userId_tenantId: {
-            roleId: role.id,
-            userId,
-            tenantId: null,
+      await prisma.userRole
+        .delete({
+          where: {
+            roleId_userId_tenantId: {
+              roleId: role.id,
+              userId,
+              tenantId: null,
+            },
           },
-        },
-      }).catch(async () => {
-        await prisma.userRole.deleteMany({
-          where: { roleId: role.id, userId, tenantId: null },
+        })
+        .catch(async () => {
+          await prisma.userRole.deleteMany({
+            where: { roleId: role.id, userId, tenantId: null },
+          });
         });
-      });
     }
   }
 
@@ -158,7 +162,10 @@ export async function updateCentralUser(userId: string, data: Partial<UserFormIn
 /**
  * ENABLE / DISABLE user.
  */
-export async function toggleCentralUserActive(userId: string, isActive: boolean) {
+export async function toggleCentralUserActive(
+  userId: string,
+  isActive: boolean
+) {
   const { user: currentSessionUser } = await getCurrentSession();
   const current = await getUserWithRoles(currentSessionUser?.id ?? "");
   ensureCentralOnly(current);
