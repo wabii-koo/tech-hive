@@ -11,6 +11,14 @@ import path from "path";
 import { prisma } from "@/lib/prisma";
 import { render } from "@react-email/components";
 
+// ✅ import your account email template + types
+import {
+  UserAccountEmail,
+  getUserAccountSubject,
+  type UserAccountKind,
+  type UserStatus,
+} from "@/emails/user-account-template";
+
 const resendApiKey = process.env.RESEND_API_KEY;
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
@@ -142,23 +150,19 @@ export async function sendEmail({
       emailHtml = await render(react);
     }
 
-    const attachments = [];
-    
-    // 2. SMTP LOGO MAGIC: 
-    // If the HTML contains our local logo URL, attach the file and replace the URL with a CID.
+    const attachments: any[] = [];
+
+    // Attach logo and replace URL with CID
     if (emailHtml && emailHtml.includes("/logo/logo.png")) {
       const logoPath = path.join(process.cwd(), "public", "logo", "logo.png");
-      
-      // Only attach if file actually exists locally
+
       if (fs.existsSync(logoPath)) {
         attachments.push({
           filename: "logo.png",
           path: logoPath,
-          cid: "hive-logo", // This ID matches the replacement below
+          cid: "hive-logo",
         });
 
-        // Regex to replace http://localhost:3000/logo/logo.png with cid:hive-logo
-        // We replace any src ending in /logo/logo.png to be safe
         emailHtml = emailHtml.replace(
           /src="[^"]*\/logo\/logo\.png"/g,
           'src="cid:hive-logo"'
@@ -173,7 +177,7 @@ export async function sendEmail({
       text,
       html: emailHtml,
       replyTo,
-      attachments, // <--- Attach the logo file
+      attachments,
     });
 
     console.log("✅ [EMAIL SENT via SMTP]", {
@@ -183,4 +187,90 @@ export async function sendEmail({
   } catch (error) {
     console.error("❌ [EMAIL SEND ERROR via SMTP]", error);
   }
+}
+
+/* ----------------------------------------------------------
+ * High-level helper: sendAccountEmail (used by central admin)
+ * -------------------------------------------------------- */
+
+type AccountEmailType =
+  | "account_created"
+  | "account_updated"
+  | "account_status_changed";
+
+type BasePayload = {
+  name?: string | null;
+  email: string;
+};
+
+type AccountCreatedPayload = BasePayload & {
+  tempPassword?: string | null;
+};
+
+type AccountUpdatedPayload = BasePayload;
+
+type AccountStatusChangedPayload = BasePayload & {
+  isActive: boolean;
+};
+
+type SendAccountEmailArgs =
+  | {
+      to: string;
+      type: "account_created";
+      payload: AccountCreatedPayload;
+    }
+  | {
+      to: string;
+      type: "account_updated";
+      payload: AccountUpdatedPayload;
+    }
+  | {
+      to: string;
+      type: "account_status_changed";
+      payload: AccountStatusChangedPayload;
+    };
+
+export async function sendAccountEmail(args: SendAccountEmailArgs) {
+  const { to, type, payload } = args;
+
+  let kind: UserAccountKind;
+  let status: UserStatus;
+  let password: string | undefined;
+
+  switch (type) {
+    case "account_created":
+      kind = "created";
+      status = "ACTIVE";
+      password = payload.tempPassword ?? undefined;
+      break;
+
+    case "account_updated":
+      kind = "updated";
+      status = "ACTIVE";
+      password = undefined;
+      break;
+
+    case "account_status_changed":
+      kind = payload.isActive ? "updated" : "deactivated";
+      status = payload.isActive ? "ACTIVE" : "INACTIVE";
+      password = undefined;
+      break;
+
+    default: {
+      const _never: AccountEmailType = type;
+      throw new Error(`Unsupported account email type: ${_never}`);
+    }
+  }
+
+  await sendEmail({
+    to,
+    subject: getUserAccountSubject(kind),
+    react: React.createElement(UserAccountEmail, {
+      kind,
+      name: payload.name || payload.email,
+      email: payload.email,
+      password,
+      status,
+    }),
+  });
 }
