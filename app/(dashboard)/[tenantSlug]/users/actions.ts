@@ -9,7 +9,7 @@ import {
 import { getTenantAndUser } from "@/lib/get-tenant-and-user";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { sendAccountEmail } from "@/lib/email";
+import { sendAccountEmail } from "@/lib/send-email";
 
 type TenantUserFormInput = {
   name: string;
