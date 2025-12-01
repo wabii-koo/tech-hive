@@ -9,7 +9,7 @@ import {
 import { getCurrentSession } from "@/lib/auth-server";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { sendAccountEmail } from "@/lib/email";
+import { sendAccountEmail } from "@/lib/send-email";
 
 type UserFormInput = {
   name: string;
