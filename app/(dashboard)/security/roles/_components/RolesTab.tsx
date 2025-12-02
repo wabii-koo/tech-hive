@@ -173,7 +173,7 @@ async function main() {
   // 3) CENTRAL ROLE (GLOBAL)
   section("Seeding central role");
 
- const centralSuperAdmin = await prisma.role.findFirst({
+const centralSuperAdmin = await prisma.role.findFirst({
   where: {
     tenantId: null,
     key: "central_superadmin",
