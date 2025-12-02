@@ -173,25 +173,18 @@ async function main() {
   // 3) CENTRAL ROLE (GLOBAL)
   section("Seeding central role");
 
-  const centralSuperAdmin = await prisma.role.upsert({
-    where: {
-      tenantId_key: {
-        tenantId: null,
-        key: "central_superadmin",
-      },
+ const centralSuperAdmin = await prisma.role.findFirst({
+  where: {
+    tenantId: null,
+    key: "central_superadmin",
+  },
+  include: {
+    rolePermissions: {
+      include: { permission: true },
     },
-    update: {
-      name: "Central Super Administrator",
-      scope: RoleScope.CENTRAL,
-      tenantId: null,
-    },
-    create: {
-      key: "central_superadmin",
-      name: "Central Super Administrator",
-      scope: RoleScope.CENTRAL,
-      tenantId: null,
-    },
-  });
+  },
+});
+
 
   // 4) TENANT ROLES (PER TENANT – tenantId is SET)
   section("Seeding tenant roles");
