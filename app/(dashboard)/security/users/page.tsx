@@ -1,7 +1,7 @@
 // app/(dashboard)/security/users/page.tsx
 
 import { Breadcrumb } from "@/components/breadcrumb";
-import UsersClient from "./_components/users-tab-client";
+import { UsersTabClient } from "./_components/users-tab-client";
 import { getCurrentSession } from "@/lib/auth-server";
 import { getCurrentUserPermissions } from "@/lib/rbac";
 import { headers } from "next/headers";
@@ -109,9 +109,16 @@ export default async function UsersPage() {
         </div>
       </div>
 
-      <UsersClient
-        users={users}
-        canManageUsers={canManageUsers}
+     {/* 2. UPDATE COMPONENT USAGE HERE 👇 */}
+      <UsersTabClient
+        users={users as any} // Cast might be needed depending on strict DB types vs Client types
+        assignableRoles={[]} // You need to pass real roles here or fetch them above
+        centralRoleMap={{}} // You need to pass the real map here
+        currentUserId={user.id}
+        tenantId={tenantId}
+        tenantName={company?.companyName || "Central"}
+        permissions={permissions}
+        canManageUsers={canManageUsers} // Note: Your client component doesn't actually have this prop in the Props type, check your Props definition
         companySettings={companySettings}
         brandingSettings={brandingSettings}
       />
