@@ -10,7 +10,7 @@ export default function NotFound() {
       title="Page not found"
       description="We couldn't find the page you were looking for. It might have been moved or deleted."
       primaryAction={{ href: "/dashboard", label: "Back to dashboard" }}
-      iconName="search"
+      // iconName="search"  // ❌ remove this line
       Icon={SearchX}
     />
   );
