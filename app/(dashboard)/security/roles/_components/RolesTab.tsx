@@ -2,8 +2,8 @@
 
 import { PrismaClient, RoleScope } from "@prisma/client";
 
-import { auth } from "../lib/auth";
-import { syncCentralSuperAdminPermissions } from "../lib/rbac";
+import { auth } from '@/lib/auth';
+import { syncCentralSuperAdminPermissions } from '@/lib/rbac';
 
 const prisma = new PrismaClient();
 
