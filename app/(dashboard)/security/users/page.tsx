@@ -118,7 +118,6 @@ export default async function UsersPage() {
         tenantId={tenantId}
         tenantName={company?.companyName || "Central"}
         permissions={permissions}
-        canManageUsers={canManageUsers} // Note: Your client component doesn't actually have this prop in the Props type, check your Props definition
         companySettings={companySettings}
         brandingSettings={brandingSettings}
       />
