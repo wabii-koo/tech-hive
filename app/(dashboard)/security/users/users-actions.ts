@@ -1,4 +1,3 @@
-// app/(dashboard)/security/users/users-actions.ts
 "use server";
 
 import {
@@ -108,39 +107,26 @@ async function authorizeUserAction(
 }
 
 /* ------------------------------------------------------------------
- * Password-setup token helpers (uses PasswordSetupToken model)
+ * Password-setup token helpers
  * ------------------------------------------------------------------ */
 
-/**
- * Generate a secure random token and expiry time.
- * Token is stored as plain string in `PasswordSetupToken.token`.
- */
+/** Generate raw token + expiry (24h) */
 function generatePasswordSetupToken() {
   const token = crypto.randomBytes(32).toString("hex");
-  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24); // 24h
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24);
   return { token, expiresAt };
 }
 
-/**
- * Issue a fresh password-setup token for a user:
- * - Deletes existing tokens for that user
- * - Creates a new PasswordSetupToken row
- * - Returns the raw token (for email link)
- */
+/** One active token per user */
 async function issuePasswordSetupToken(userId: string) {
   const { token, expiresAt } = generatePasswordSetupToken();
 
-  // Remove older tokens for this user (one active token per user)
   await prisma.passwordSetupToken.deleteMany({
     where: { userId },
   });
 
   await prisma.passwordSetupToken.create({
-    data: {
-      userId,
-      token,
-      expiresAt,
-    },
+    data: { userId, token, expiresAt },
   });
 
   return { token, expiresAt };
@@ -213,8 +199,7 @@ export async function createOrUpdateUserAction(rawData: unknown) {
   const plainPassword = (input.password ?? "").trim();
   const normalizedEmail = input.email.toLowerCase().trim();
 
-  // For "created" emails we want to send the user to **setup-password**
-  // instead of directly to sign-in.
+  // URL used in the email for first-time login
   let passwordSetupUrl: string | undefined;
 
   if (input.id) {
@@ -280,10 +265,9 @@ export async function createOrUpdateUserAction(rawData: unknown) {
 
     changedPassword = true;
 
-    // 🔐 Issue password-setup token for this new user
+    // 🔐 Issue our own password-setup token for this brand-new user
     const { token } = await issuePasswordSetupToken(user.id);
 
-    // Base app URL: prefer tenant domain, then APP_URL
     const baseAppUrl =
       loginUrl ||
       process.env.NEXT_PUBLIC_APP_URL ||
@@ -335,7 +319,7 @@ export async function createOrUpdateUserAction(rawData: unknown) {
   const status = user.isActive ? "ACTIVE" : "INACTIVE";
   const kind = input.id ? ("updated" as const) : ("created" as const);
 
-  // We no longer send the password in email; user must click the setup link.
+  // ✅ We no longer send the plain password in the email
   const passwordForEmail = undefined;
 
   await sendEmail({
@@ -353,7 +337,7 @@ export async function createOrUpdateUserAction(rawData: unknown) {
       changedRole: kind === "updated" ? changedRole : undefined,
       tenantName,
       tenantDomain,
-      // 👇 For newly created users, CTA = /setup-password?token=...
+      // 👇 brand-new users get the setup-password link
       loginUrl: kind === "created" ? passwordSetupUrl ?? loginUrl : loginUrl,
     }),
   });

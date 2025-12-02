@@ -297,6 +297,46 @@ async function copyCsv<T>(table: TanTable<T>, rows?: Row<T>[]) {
   }
 }
 
+async function exportXlsx<T>(
+  table: TanTable<T>,
+  fileName = "export",
+  rows?: Row<T>[]
+) {
+  try {
+    // Dynamic import to avoid server-side build issues
+    const XLSX = await import("xlsx");
+    
+    const cols = getExportableColumns(table);
+    const dataRows = rows ?? getSafeFilteredRows(table);
+
+    // Map data to simple key-value objects for the sheet
+    const data = dataRows.map((r) => {
+      const rowObj: Record<string, any> = {};
+      cols.forEach((c) => {
+        const header =
+          typeof c.columnDef.header === "string" ? c.columnDef.header : c.id;
+          
+        const meta = (c.columnDef.meta || {}) as any;
+        const val =
+          typeof meta.exportValue === "function"
+            ? meta.exportValue(r.original)
+            : r.getValue(c.id);
+            
+        rowObj[header] = val;
+      });
+      return rowObj;
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
+    XLSX.writeFile(workbook, `${fileName}.xlsx`);
+    toast.success("XLSX Exported");
+  } catch (err) {
+    console.error(err);
+    toast.error("XLSX export failed (Try: npm i xlsx)");
+  }
+}
 async function loadImageAsDataUrl(url: string): Promise<string | null> {
   try {
     const res = await fetch(url);

@@ -1,12 +1,10 @@
-// app/(auth)/setup-password/page.tsx
-
 import type { Metadata } from "next";
-import { SetupPasswordClient } from "./setup-password-client";
+import SetupPasswordClient from "./setup-password-client";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = {
-  title: "Set Password", // will be combined with your layout template
+  title: "Set Password",
 };
 
 async function getBrandSettings() {
@@ -37,7 +35,6 @@ async function getBrandSettings() {
   return brand;
 }
 
-// 👇 IMPORTANT: searchParams is a Promise in server components now
 type SearchParamsPromise = Promise<{ token?: string | string[] }>;
 
 export default async function SetupPasswordPage({
@@ -47,11 +44,9 @@ export default async function SetupPasswordPage({
 }) {
   const brand = await getBrandSettings();
 
-  // ✅ unwrap the promise first
   const resolved = await searchParams;
   const tokenParam = resolved?.token;
 
-  // normalise token into a string
   const token =
     typeof tokenParam === "string"
       ? tokenParam

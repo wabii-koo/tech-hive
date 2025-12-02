@@ -1,4 +1,3 @@
-// app/(auth)/setup-password/setup-password-client.tsx
 "use client";
 
 import { Loader2, Lock, ShieldCheck, Sparkles } from "lucide-react";
@@ -21,7 +20,7 @@ type SetupPasswordClientProps = {
   } | null;
 };
 
-export function SetupPasswordClient({ token, brand }: SetupPasswordClientProps) {
+export default function SetupPasswordClient({ token, brand }: SetupPasswordClientProps) {
   const router = useRouter();
 
   const appTitle = brand?.titleText?.trim() || "Hive";
@@ -64,14 +63,12 @@ export function SetupPasswordClient({ token, brand }: SetupPasswordClientProps) 
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         setError(
-          body?.message ||
-            "Unable to set password. Please try again."
+          body?.message || "Unable to set password. Please try again."
         );
         setLoading(false);
         return;
       }
 
-      // success → redirect to sign in
       router.replace("/sign-in?firstTime=1");
     } catch (err) {
       console.error(err);
@@ -93,7 +90,7 @@ export function SetupPasswordClient({ token, brand }: SetupPasswordClientProps) 
         <ThemeToggle />
       </div>
 
-      {/* LEFT – info card (can keep same as sign-in hero) */}
+      {/* LEFT – info card */}
       <div className="relative hidden h-full flex-col border-r bg-slate-950 px-10 py-10 text-slate-50 lg:flex">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_#4f46e510,_transparent_60%),radial-gradient(circle_at_bottom,_#22c55e10,_transparent_55%)]" />
 
@@ -249,7 +246,10 @@ export function SetupPasswordClient({ token, brand }: SetupPasswordClientProps) 
                     disabled={loading}
                     value={form.confirmPassword}
                     onChange={(e) =>
-                      setForm((f) => ({ ...f, confirmPassword: e.target.value }))
+                      setForm((f) => ({
+                        ...f,
+                        confirmPassword: e.target.value,
+                      }))
                     }
                     className="h-10 bg-background pl-9 text-sm"
                   />
