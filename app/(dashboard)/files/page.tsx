@@ -23,15 +23,10 @@ import { FolderActionsMenu } from "@/components/file-manager/folder-actions-menu
 import Link from "next/link";
 import { PdfModalViewer } from "@/components/file-manager/pdf-fullscreen-viewer";
 import type React from "react";
-import { getCurrentUserPermissions } from "@/lib/permissions";
 import { getTenantAndUser } from "@/lib/get-tenant-and-user";
 import { prisma } from "@/lib/prisma";
 import { requireAnyPermission } from "@/lib/permission-guard";
 import { revalidatePath } from "next/cache";
-
-// 🔒 RBAC helpers
-
-
 
 /* ---------- Server action: update global file manager settings ---------- */
 
@@ -171,7 +166,6 @@ export default async function FilesPage(props: {
   const userPermissions = await requireAnyPermission("manage_files");
 
   // RBAC within the page
-  const canManageFiles = userPermissions.includes("manage_files");
   const canViewSettingsSection = userPermissions.includes(
     "manage_storage_settings"
   );
@@ -283,7 +277,7 @@ export default async function FilesPage(props: {
     where: { id: "global" },
   });
 
- const defaultExtensions = [
+  const defaultExtensions = [
     ".pdf",
     ".doc",
     ".docx",
@@ -299,7 +293,6 @@ export default async function FilesPage(props: {
   ];
 
   const maxFileSizeMb = dbSettings?.maxFileSizeMb ?? 50;
-
 
   // Safely coerce DB value -> string[]
   const rawAllowed = dbSettings?.allowedExtensions as unknown;
@@ -318,6 +311,21 @@ export default async function FilesPage(props: {
     dbAllowedExtensions && dbAllowedExtensions.length > 0
       ? dbAllowedExtensions
       : defaultExtensions;
+
+  const autoEmptyRecycleBinDays =
+    typeof dbSettings?.autoEmptyRecycleBinDays === "number"
+      ? dbSettings.autoEmptyRecycleBinDays
+      : 30;
+
+  const requireDeleteConfirmation =
+    typeof dbSettings?.requireDeleteConfirmation === "boolean"
+      ? dbSettings.requireDeleteConfirmation
+      : true;
+
+  const allowPublicSharing =
+    typeof dbSettings?.allowPublicSharing === "boolean"
+      ? dbSettings.allowPublicSharing
+      : false;
 
   /* ---------- Recents / filtered / section files ---------- */
 
