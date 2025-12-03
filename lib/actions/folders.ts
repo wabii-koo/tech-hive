@@ -16,8 +16,9 @@ export async function createFolderAction(input: { name: string }) {
   const tenant = await getCurrentTenant();
   let tenantId: string | undefined;
 
-  // ✅ FIX: Check the mode. "central" mode object does NOT have an ID.
-  if (tenant.mode === "tenant") {
+  // ✅ FIX: Use 'in' operator to check if 'id' exists. 
+  // This is a type guard that satisfies the compiler.
+  if ("id" in tenant) {
     tenantId = tenant.id;
   } else {
     // If we are in central/root mode, resolve the ID of the 'Central Hive' tenant explicitly.
