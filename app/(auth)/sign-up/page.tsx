@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, Lock, Mail, User } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 
-export default function SignUpPage() {
+function SignUpContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackURL = searchParams.get("callbackURL") || "/";
@@ -253,5 +253,20 @@ export default function SignUpPage() {
         </p>
       </form>
     </Card>
+  );
+}
+
+// ✅ FIX: Default export wraps the content in Suspense
+export default function SignUpPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center p-8">
+          <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+        </div>
+      }
+    >
+      <SignUpContent />
+    </Suspense>
   );
 }
