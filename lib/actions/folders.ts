@@ -16,12 +16,11 @@ export async function createFolderAction(input: { name: string }) {
   const tenant = await getCurrentTenant();
   let tenantId: string | undefined;
 
-  // ✅ FIX: TypeScript check for discriminated union
+  // ✅ FIX: Check the mode. "central" mode object does NOT have an ID.
   if (tenant.mode === "tenant") {
     tenantId = tenant.id;
   } else {
-    // If we are in central/root mode, we need to decide where folders go.
-    // For now, let's link them to the "Central Hive" tenant if it exists.
+    // If we are in central/root mode, resolve the ID of the 'Central Hive' tenant explicitly.
     const central = await prisma.tenant.findUnique({
       where: { slug: "central-hive" },
     });
@@ -36,7 +35,7 @@ export async function createFolderAction(input: { name: string }) {
     await prisma.folder.create({
       data: {
         name: input.name.trim(),
-        tenantId: tenantId, // Use the resolved tenantId
+        tenantId: tenantId,
         createdById: user.id,
       },
     });
