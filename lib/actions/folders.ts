@@ -16,10 +16,10 @@ export async function createFolderAction(input: { name: string }) {
   const tenant = await getCurrentTenant();
   let tenantId: string | undefined;
 
-  // ✅ FIX: Use 'in' operator to check if 'id' exists. 
-  // This is a type guard that satisfies the compiler.
+  // ✅ FIX: "id" in tenant proves it exists, but TS treats it as 'unknown'.
+  // We explicitly cast it 'as string' to fix the type error.
   if ("id" in tenant) {
-    tenantId = tenant.id;
+    tenantId = tenant.id as string;
   } else {
     // If we are in central/root mode, resolve the ID of the 'Central Hive' tenant explicitly.
     const central = await prisma.tenant.findUnique({
