@@ -3,6 +3,8 @@
 import { DashboardShell } from "@/components/dashboard-shell";
 import { FileManagerEventListener } from "@/components/file-manager/file-manager-event-listener";
 import { PermissionsProvider } from "@/components/providers/permissions-provider";
+import { OfflineIndicator } from "@/components/offline-indicator";
+import { SyncStatus } from "@/components/sync-status";
 import { getCurrentSession } from "@/lib/auth-server";
 import { getCurrentUserPermissions } from "@/lib/permissions";
 import { headers } from "next/headers";
@@ -80,6 +82,12 @@ export default async function DashboardLayout({
     <PermissionsProvider permissions={permissions}>
       {/* Global “Choose from File Manager” listener */}
       <FileManagerEventListener />
+      
+      {/* Offline indicator */}
+      <OfflineIndicator />
+      
+      {/* Sync status */}
+      <SyncStatus />
 
       <DashboardShell
         user={{ name: user.name ?? null, email: user.email }}
